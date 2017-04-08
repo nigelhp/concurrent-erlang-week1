@@ -7,7 +7,7 @@
 %%   (c) Francesco Cesarini and Simon Thompson
 
 -module(frequency).
--export([start/0,allocate/0,deallocate/1,stop/0,clear/0]).
+-export([start/0,allocate/0,deallocate/1,stop/0]).
 -export([init/0]).
 
 %% These are the start functions used to create and
