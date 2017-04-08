@@ -7,7 +7,7 @@
 %%   (c) Francesco Cesarini and Simon Thompson
 
 -module(frequency).
--export([start/0,allocate/0,deallocate/1,stop/0]).
+-export([start/0,allocate/0,deallocate/1,stop/0,clear/0]).
 -export([init/0]).
 
 %% These are the start functions used to create and
@@ -41,7 +41,14 @@ loop(Frequencies) ->
   end.
 
 %% Functional interface
-
+%% Note the assumption here that the client will never receive a message
+%% matching the pattern {reply, ...} from anything other than the frequency
+%% server.
+%% One approach discussed in the lectures was for the server to include its
+%% PID in replies, so that clients could include the target server PID in
+%% the pattern-match when awaiting a reply.  However, the use of a named
+%% process here seemed to be to intentionally move us away from knowledge 
+%% of a specific PID.
 allocate() -> 
     frequency ! {request, self(), allocate},
     receive 
@@ -60,6 +67,14 @@ stop() ->
 	    {reply, Reply} -> Reply
     end.
 
+%% allows a client to flush its mailbox
+%% (simply draining any messages without action)
+clear() ->
+    receive
+        _Msg -> clear()
+    after 0 ->
+            ok
+    end.
 
 %% The Internal Help Functions used to allocate and
 %% deallocate frequencies.
