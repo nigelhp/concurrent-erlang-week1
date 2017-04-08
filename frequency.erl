@@ -41,6 +41,7 @@ loop(Frequencies) ->
   end.
 
 %% Functional interface
+%%
 %% Note the assumption here that the client will never receive a message
 %% matching the pattern {reply, ...} from anything other than the frequency
 %% server.
@@ -49,29 +50,49 @@ loop(Frequencies) ->
 %% the pattern-match when awaiting a reply.  However, the use of a named
 %% process here seemed to be to intentionally move us away from knowledge 
 %% of a specific PID.
-allocate() -> 
+%%
+%% The client will receive a timeout error if it does not receive a prompt 
+%% reply from the server to an allocate / deallocate request.  However, a 
+%% server reply may still be delivered to the mailbox (albeit late).  We
+%% therefore explicitly clear the client mailbox before making requests of
+%% the server, in order to attempt to prevent receive blocks from picking-up
+%% old replies.  However, this still seems subject to a race condition - a
+%% late response could still be received after clear has completed.  Also
+%% note that in the case of successful replies that are delivered late, we
+%% now have an inconsistent view of state.  The client received an error,
+%% but the server has actually allocated a frequency to that client.  If the
+%% client simply retries, we potentially have unused allocated frequencies
+%% - not good when frequencies are a limited resource.
+allocate() ->
+    clear(),
     frequency ! {request, self(), allocate},
     receive 
 	    {reply, Reply} -> Reply
+    after 500 ->
+            {reply, {error, timeout}}
     end.
 
-deallocate(Freq) -> 
+deallocate(Freq) ->
+    clear(),
     frequency ! {request, self(), {deallocate, Freq}},
     receive 
 	    {reply, Reply} -> Reply
+    after 500 ->
+            {reply, {error, timeout}}
     end.
 
 stop() -> 
+    clear(),
     frequency ! {request, self(), stop},
     receive 
 	    {reply, Reply} -> Reply
     end.
 
-%% allows a client to flush its mailbox
-%% (simply draining any messages without action)
+%% Flush the client mailbox (simply draining any messages without action)
 clear() ->
     receive
-        _Msg -> clear()
+        Msg -> io:format("dropping message: ~p~n", [Msg]),
+               clear()
     after 0 ->
             ok
     end.
